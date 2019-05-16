@@ -21,8 +21,8 @@ class QNetwork(nn.Module):
         out = self.W1(_in)
         out = F.relu(out)
         out = self.W2(out)
-        out = F.softmax(out)
-        return out.cpu().numpy()
+        out = F.softmax(out, dim=-1)
+        return out.cpu().detach().numpy()
 
     def optimize(self, state, target):
         pass
@@ -56,10 +56,13 @@ class Memory:
     def commit(self, *args):
         if len(self.storage) >= self.capacity:
             self.storage.pop(0)
-        self.storage.append(tuple(*args))
+        self.storage.append(tuple(args))
 
     def sample(self, size: int):
         return random.sample(self.storage, size)
+
+    def __len__(self):
+        return len(self.storage)
 
 class Agent:
     def __init__(self, model: nn.Module, memory: Memory,
@@ -84,10 +87,13 @@ class Agent:
         else:
             return np.argmax(self.model(state))
 
-    def remember(state, action, reward, next_state, terminal):
+    def remember(self, state, action, reward, next_state, terminal):
         self.memory.commit(state, action, reward, next_state, terminal)
 
     def replay(self, batch_size: int):
+        if len(self.memory) < batch_size:
+            return
+
         batch = self.memory.sample(batch_size)
 
         while batch:
@@ -140,7 +146,6 @@ def main(environment: str, epochs: int, hyper_parameters: HyperParameters):
             Memory(hyper_parameters.capacity),
             **hyper_parameters)
 
-    episode_length = hyper_parameters.episodes
     sandbox = GymRunner(environment, agent)
 
     for epoch in range(epochs):
@@ -154,7 +159,7 @@ if __name__ == "__main__":
 
     argp = argparse.ArgumentParser(sys.argv[0])
     argp.add_argument('--environment', '-g', type=str, default="CartPole-v0")
-    argp.add_argument('--discount_rate' '-G', type=float, default=0.95)
+    argp.add_argument('--discount_rate', '-G', type=float, default=0.95)
     argp.add_argument('--random_threshold', '-E', metavar='EXPLORATION_RATE', type=float, default=1.0)
     argp.add_argument('--threshold_decay', '-D', type=float, default=0.995)
     argp.add_argument('--minimum_threshold', '-M', type=float, default=0.01)
