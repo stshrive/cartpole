@@ -130,7 +130,8 @@ def main(environment: str, epochs: int, hyper_parameters: HyperParameters):
 
     model = QNetwork(
             environment.observation_space.shape[0],
-            environment.action_space.n)
+            environment.action_space.n
+            hyper_parameters.hidden)
 
     agent = Agent(
             model,
@@ -158,6 +159,7 @@ if __name__ == "__main__":
     argp.add_argument('--capacity', '-c', type=int, default=10000)
     argp.add_argument('--episode_length', '-t', type=int, default=300)
     argp.add_argument('--epochs', '-e', type=int, default=10000)
+    argp.add_argument('--hidden', '-H', type=int, default=128)
 
     args = argp.parse_args()
     params = HyperParameters(**args.__dict__)
