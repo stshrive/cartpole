@@ -130,7 +130,7 @@ def main(environment: str, epochs: int, hyper_parameters: HyperParameters):
 
     model = QNetwork(
             environment.observation_space.shape[0],
-            envrionment.action_space.n)
+            environment.action_space.n)
 
     agent = Agent(
             model,
