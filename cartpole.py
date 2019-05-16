@@ -82,6 +82,9 @@ class Agent:
         else:
             return np.argmax(self.model(state))
 
+    def remember(state, action, reward, next_state, terminal):
+        self.memory.commit(state, action, reward, next_state, terminal)
+
     def replay(self, batch_size: int):
         batch = self.memory.sample(batch_size)
 
@@ -102,5 +105,60 @@ class GymRunner:
         self.environment = environment
         self.agent = agent
 
-    def execute(self):
+    def execute(self, episode_length: int):
         state, reward = self.environment.reset(), 0
+        agent = self.agent
+
+        ending_frame = 0
+
+        for episode_frame in range(episode_length):
+            action = self.agent.choose_action(state)
+            next_state, reward, terminal, _ = self.environment.step(action)
+
+            self.agent.remember(state, action, reward, next_state, terminal)
+            state = next_state
+
+            if terminal:
+                ending_frame = episode_frame
+                break
+
+        agent.replay(32)
+        return ending_frame
+
+def main(environment: str, epochs: int, hyper_parameters: HyperParameters):
+    environment = gym.make(environment)
+
+    model = QNetwork(
+            environment.observation_space.shape[0],
+            envrionment.action_space.n)
+
+    agent = Agent(
+            model,
+            Memory(hyper_parameters.capacity),
+            **hyper_parameters)
+
+    episode_length = hyper_parameters.episodes
+    sandbox = GymRunner(environment, agent)
+
+    for epoch in range(epochs):
+        sandbox.execute(hyper
+
+
+if __name__ == "__main__":
+    import sys
+    import argparse
+
+    argp = argparse.ArgumentParser(sys.argv[0])
+    argp.add_argument('--environment', '-g', type=str, default="CartPole-v0")
+    argp.add_argument('--discount_rate' '-G', type=float, default=0.95)
+    argp.add_argument('--random_threshold', '-E', metavar='EXPLORATION_RATE', type=float, default=1.0)
+    argp.add_argument('--threshold_decay', '-D', type=float, default=0.995)
+    argp.add_argument('--minimum_threshold', '-M', type=float, default=0.01)
+    argp.add_argument('--capacity', '-c', type=int, default=10000)
+    argp.add_argument('--episode_length', '-t', type=int, default=300)
+    argp.add_argument('--epochs', '-e', type=int, default=10000)
+
+    args = argp.parse_args()
+    params = HyperParameters(**args.__dict__)
+
+    main(args.environment, args.epochs, params)
