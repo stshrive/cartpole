@@ -141,7 +141,8 @@ def main(environment: str, epochs: int, hyper_parameters: HyperParameters):
     sandbox = GymRunner(environment, agent)
 
     for epoch in range(epochs):
-        sandbox.execute(hyper
+        t = sandbox.execute(hyper_parameters.episode_length)
+        print(f'epoch: {epoch}/{epochs}, SCORE: {t}')
 
 
 if __name__ == "__main__":
