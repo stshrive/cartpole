@@ -67,6 +67,8 @@ class Agent:
             random_threshold: float,
             threshold_decay: float,
             minimum_threshold: float,
+            *args,
+            **kwargs
         ):
         self.model  = model
         self.memory = memory
