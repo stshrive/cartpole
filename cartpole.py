@@ -8,6 +8,8 @@ from torch import nn
 from collections import deque
 from collections import abc
 
+import ttypes
+
 class QNetwork(nn.Module):
     def __init__(self, _in: int, _out: int, _hidden: int):
         super(QNetwork, self).__init__()
@@ -17,7 +19,7 @@ class QNetwork(nn.Module):
         self.W2 = nn.Linear(_hidden, _out)
 
     def forward(self, _in):
-        _in = torch.from_numpy(_in).float()
+        _in = ttypes.from_numpy(_in)
         out = self.W1(_in)
         out = F.relu(out)
         out = self.W2(out)
@@ -83,9 +85,10 @@ class Agent:
 
     def choose_action(self, state):
         if np.random.rand() <= self.random_threshold:
-            return random.randrange(self.model.outputs)
+            return ttypes.LongTensor([[random.randrange(self.model.outputs)]])
         else:
-            return np.argmax(self.model(state))
+            action = self.model(state)
+            return self.model(state).max(0)[1].view(1, 1)
 
     def remember(self, state, action, reward, next_state, terminal):
         self.memory.commit(state, action, reward, next_state, terminal)
@@ -101,10 +104,15 @@ class Agent:
             target = reward
             if not terminal:
                 target = reward + self.discount_rate \
-                        * np.amax(self.model(next_state))
+                        * self.model(next_state)
             future_discount = self.model(state)
-            future_discount[0][action] = target
-            self.model.optimize(state, future_discount)
+
+            if terminal:
+                break
+
+            self.model.optimize(future_discount, target, F.smooth_l1_loss)
+        if self.random_threshold > self.minimum_threshold:
+            self.random_threshold *= self.threshold_decay
 
 
 # This is where the agent plays in an environement to learn
