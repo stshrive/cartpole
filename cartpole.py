@@ -33,14 +33,13 @@ class QNetwork(nn.Module):
         out = self.W1(_in)
         out = F.relu(out)
         out = self.W2(out)
-        out = F.softmax(out, dim=0)
+        out = F.softmax(out, dim=-1)
         return out
 
-    def optimize(self, state, target, loss_func: nn.Module):
-        print(state, target)
+    def optimize(self, predicted, target, loss_func: nn.Module):
         self.optimizer.zero_grad()
 
-        loss = loss_func(state, target)
+        loss = loss_func(predicted, target)
         loss.backward()
         self.optimizer.step()
 
@@ -100,10 +99,13 @@ class Agent:
 
     def choose_action(self, state):
         if np.random.rand() <= self.random_threshold:
+            # Choose random actions
             return ttypes.LongTensor([[random.randrange(self.model.outputs)]])
         else:
-            action = self.model(state)
-            return self.model(state).max(0)[1].view(1, 1)
+            # Choose the best action based on Agent's knowledge given the
+            # current state.
+            with torch.no_grad():
+                return self.model(state).max(0)[1].view(1, 1)
 
     def remember(self, state, action, reward, next_state, terminal):
         self.memory.commit(state, action, reward, next_state, terminal)
@@ -116,16 +118,18 @@ class Agent:
 
         while batch:
             state, action, reward, next_state, terminal = batch.pop(0)
-            target = reward
+            target = ttypes.FloatTensor([-1, -1])
             if not terminal:
                 target = reward + self.discount_rate \
                         * self.model(next_state)
-            future_discount = self.model(state)
 
-            if terminal:
-                break
+            # Get the predicted rewards for each action
+            predictions = self.model(state).clone()
 
-            self.model.optimize(future_discount, target, F.smooth_l1_loss)
+            # Given the chosen action, update our prediction
+            predictions[action[0][0]] = target[action[0][0]]
+
+            self.model.optimize(predictions, target, F.smooth_l1_loss)
         if self.random_threshold > self.minimum_threshold:
             self.random_threshold *= self.threshold_decay
 
@@ -154,7 +158,7 @@ class GymRunner:
                 ending_frame = episode_frame
                 break
 
-        agent.replay(32)
+        agent.replay(128)
         return ending_frame
 
 def main(environment: str, epochs: int, hyper_parameters: HyperParameters):
@@ -186,14 +190,14 @@ if __name__ == "__main__":
 
     argp = argparse.ArgumentParser(sys.argv[0])
     argp.add_argument('--environment', '-g', type=str, default="CartPole-v0")
-    argp.add_argument('--discount-rate', '-G', type=float, default=0.95)
-    argp.add_argument('--random_threshold', '-E', metavar='EXPLORATION_RATE', type=float, default=1.0)
-    argp.add_argument('--threshold_decay', '-D', type=float, default=0.995)
+    argp.add_argument('--discount-rate', '-G', type=float, default=0.8)
+    argp.add_argument('--random_threshold', '-E', metavar='EXPLORATION_RATE', type=float, default=0.9)
+    argp.add_argument('--threshold_decay', '-D', type=float, default=0.7)
     argp.add_argument('--minimum_threshold', '-M', type=float, default=0.01)
     argp.add_argument('--capacity', '-c', type=int, default=10000)
     argp.add_argument('--episode-length', '-t', type=int, default=300)
     argp.add_argument('--epochs', '-e', type=int, default=10000)
-    argp.add_argument('--hidden', '-H', type=int, default=128)
+    argp.add_argument('--hidden', '-H', type=int, default=256)
     argp.add_argument('--optimizer', '-o', type=Optimizer, default='Adam')
     argp.add_argument('--learning-rate', '-l', type=float, default=1e-3)
 
