@@ -11,23 +11,38 @@ from collections import abc
 import ttypes
 
 class QNetwork(nn.Module):
-    def __init__(self, _in: int, _out: int, _hidden: int):
+    def __init__(self, _in: int, _out: int, _hidden: int,
+            optimizer: torch.optim,
+            learning_rate: float,
+            *args,
+            **kwargs,
+        ):
         super(QNetwork, self).__init__()
         self.inputs  = _in
         self.outputs = _out
         self.W1 = nn.Linear(_in, _hidden)
         self.W2 = nn.Linear(_hidden, _out)
 
+        if ttypes.gpu_compatible:
+            self.cuda()
+
+        self.optimizer = optimizer(self.parameters(), learning_rate)
+
     def forward(self, _in):
         _in = ttypes.from_numpy(_in)
         out = self.W1(_in)
         out = F.relu(out)
         out = self.W2(out)
-        out = F.softmax(out, dim=-1)
-        return out.cpu().detach().numpy()
+        out = F.softmax(out, dim=0)
+        return out
 
-    def optimize(self, state, target):
-        pass
+    def optimize(self, state, target, loss_func: nn.Module):
+        print(state, target)
+        self.optimizer.zero_grad()
+
+        loss = loss_func(state, target)
+        loss.backward()
+        self.optimizer.step()
 
 class HyperParameters(abc.Mapping):
     def __init__(self, **kwargs):
@@ -129,7 +144,8 @@ class GymRunner:
 
         for episode_frame in range(episode_length):
             action = self.agent.choose_action(state)
-            next_state, reward, terminal, _ = self.environment.step(action)
+            np_action = action[0,0].cpu().numpy()
+            next_state, reward, terminal, _ = self.environment.step(np_action)
 
             self.agent.remember(state, action, reward, next_state, terminal)
             state = next_state
@@ -147,7 +163,8 @@ def main(environment: str, epochs: int, hyper_parameters: HyperParameters):
     model = QNetwork(
             environment.observation_space.shape[0],
             environment.action_space.n,
-            hyper_parameters.hidden)
+            hyper_parameters.hidden,
+            **hyper_parameters)
 
     agent = Agent(
             model,
@@ -160,6 +177,8 @@ def main(environment: str, epochs: int, hyper_parameters: HyperParameters):
         t = sandbox.execute(hyper_parameters.episode_length)
         print(f'epoch: {epoch}/{epochs}, SCORE: {t}')
 
+def Optimizer(name: str):
+    return getattr(torch.optim, name)
 
 if __name__ == "__main__":
     import sys
@@ -167,14 +186,16 @@ if __name__ == "__main__":
 
     argp = argparse.ArgumentParser(sys.argv[0])
     argp.add_argument('--environment', '-g', type=str, default="CartPole-v0")
-    argp.add_argument('--discount_rate', '-G', type=float, default=0.95)
+    argp.add_argument('--discount-rate', '-G', type=float, default=0.95)
     argp.add_argument('--random_threshold', '-E', metavar='EXPLORATION_RATE', type=float, default=1.0)
     argp.add_argument('--threshold_decay', '-D', type=float, default=0.995)
     argp.add_argument('--minimum_threshold', '-M', type=float, default=0.01)
     argp.add_argument('--capacity', '-c', type=int, default=10000)
-    argp.add_argument('--episode_length', '-t', type=int, default=300)
+    argp.add_argument('--episode-length', '-t', type=int, default=300)
     argp.add_argument('--epochs', '-e', type=int, default=10000)
     argp.add_argument('--hidden', '-H', type=int, default=128)
+    argp.add_argument('--optimizer', '-o', type=Optimizer, default='Adam')
+    argp.add_argument('--learning-rate', '-l', type=float, default=1e-3)
 
     args = argp.parse_args()
     params = HyperParameters(**args.__dict__)
