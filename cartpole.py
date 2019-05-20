@@ -118,18 +118,20 @@ class Agent:
 
         while batch:
             state, action, reward, next_state, terminal = batch.pop(0)
-            target = ttypes.FloatTensor([-1, -1])
-            if not terminal:
-                target = reward + self.discount_rate \
-                        * self.model(next_state)
+            target_rewards = ttypes.FloatTensor([reward, reward])
+
+            predictions = self.model(state)
+            taken_action = action[0][0]
+            untaken_action = 1 if taken_action == 0 else 0
 
             # Get the predicted rewards for each action
-            predictions = self.model(state).clone()
+            target_rewards[untaken_action] = predictions.detach()[untaken_action]
+            if not terminal:
+                target_rewards[taken_action] = reward + self.discount_rate \
+                        * self.model(next_state).detach()[taken_action]
 
-            # Given the chosen action, update our prediction
-            predictions[action[0][0]] = target[action[0][0]]
+            self.model.optimize(predictions, target_rewards, F.mse_loss)
 
-            self.model.optimize(predictions, target, F.smooth_l1_loss)
         if self.random_threshold > self.minimum_threshold:
             self.random_threshold *= self.threshold_decay
 
@@ -151,6 +153,8 @@ class GymRunner:
             np_action = action[0,0].cpu().numpy()
             next_state, reward, terminal, _ = self.environment.step(np_action)
 
+            reward = reward if not terminal else -10
+
             self.agent.remember(state, action, reward, next_state, terminal)
             state = next_state
 
@@ -158,7 +162,7 @@ class GymRunner:
                 ending_frame = episode_frame
                 break
 
-        agent.replay(128)
+        agent.replay(256)
         return ending_frame
 
 def main(environment: str, epochs: int, hyper_parameters: HyperParameters):
@@ -191,13 +195,13 @@ if __name__ == "__main__":
     argp = argparse.ArgumentParser(sys.argv[0])
     argp.add_argument('--environment', '-g', type=str, default="CartPole-v0")
     argp.add_argument('--discount-rate', '-G', type=float, default=0.8)
-    argp.add_argument('--random_threshold', '-E', metavar='EXPLORATION_RATE', type=float, default=0.9)
-    argp.add_argument('--threshold_decay', '-D', type=float, default=0.7)
+    argp.add_argument('--random_threshold', '-E', metavar='EXPLORATION_RATE', type=float, default=1.0)
+    argp.add_argument('--threshold_decay', '-D', type=float, default=0.85)
     argp.add_argument('--minimum_threshold', '-M', type=float, default=0.01)
     argp.add_argument('--capacity', '-c', type=int, default=10000)
-    argp.add_argument('--episode-length', '-t', type=int, default=300)
+    argp.add_argument('--episode-length', '-t', type=int, default=500)
     argp.add_argument('--epochs', '-e', type=int, default=10000)
-    argp.add_argument('--hidden', '-H', type=int, default=256)
+    argp.add_argument('--hidden', '-H', type=int, default=32)
     argp.add_argument('--optimizer', '-o', type=Optimizer, default='Adam')
     argp.add_argument('--learning-rate', '-l', type=float, default=1e-3)
 
