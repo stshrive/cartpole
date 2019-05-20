@@ -1,6 +1,5 @@
 import torch
 import torch.nn.functional as F
-import numpy as np
 import random
 import gym
 
@@ -99,7 +98,7 @@ class Agent:
         self.minimum_threshold = minimum_threshold
 
     def choose_action(self, state):
-        if np.random.rand() <= self.random_threshold:
+        if random.random() <= self.random_threshold:
             # Choose random actions
             return ttypes.LongTensor([[random.randrange(self.model.outputs)]])
         else:
@@ -205,8 +204,10 @@ if __name__ == "__main__":
     argp.add_argument('--hidden', '-H', type=int, default=128)
     argp.add_argument('--optimizer', '-o', type=Optimizer, default='Adam')
     argp.add_argument('--learning-rate', '-l', type=float, default=1e-3)
+    argp.add_argument('--seed', type=int, default=0)
 
     args = argp.parse_args()
+    random.seed(args.seed)
     params = HyperParameters(**args.__dict__)
 
     main(args.environment, args.epochs, params)
