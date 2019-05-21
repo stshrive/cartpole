@@ -20,8 +20,7 @@ class QNetwork(nn.Module):
         self.inputs  = _in
         self.outputs = _out
         self.W1 = nn.Linear(_in, _hidden)
-        self.W2 = nn.Linear(_hidden, _hidden)
-        self.W3 = nn.Linear(_hidden, _out)
+        self.W2 = nn.Linear(_hidden, _out)
 
         if ttypes.gpu_compatible:
             self.cuda()
@@ -197,14 +196,14 @@ if __name__ == "__main__":
 
     argp = argparse.ArgumentParser(sys.argv[0])
     argp.add_argument('--environment', '-g', type=str, default="CartPole-v0")
-    argp.add_argument('--discount-rate', '-G', type=float, default=0.99)
+    argp.add_argument('--discount-rate', '-G', type=float, default=0.8)
     argp.add_argument('--random_threshold', '-E', metavar='EXPLORATION_RATE', type=float, default=1.0)
-    argp.add_argument('--threshold_decay', '-D', type=float, default=0.999)
+    argp.add_argument('--threshold_decay', '-D', type=float, default=0.85)
     argp.add_argument('--minimum_threshold', '-M', type=float, default=0.01)
     argp.add_argument('--capacity', '-c', type=int, default=10000)
     argp.add_argument('--episode-length', '-t', type=int, default=500)
-    argp.add_argument('--epochs', '-e', type=int, default=100000)
-    argp.add_argument('--hidden', '-H', type=int, default=128)
+    argp.add_argument('--epochs', '-e', type=int, default=10000)
+    argp.add_argument('--hidden', '-H', type=int, default=32)
     argp.add_argument('--optimizer', '-o', type=Optimizer, default='Adam')
     argp.add_argument('--learning-rate', '-l', type=float, default=1e-3)
     argp.add_argument('--seed', type=int, default=0)
