@@ -20,7 +20,8 @@ class QNetwork(nn.Module):
         self.inputs  = _in
         self.outputs = _out
         self.W1 = nn.Linear(_in, _hidden)
-        self.W2 = nn.Linear(_hidden, _out)
+        self.W2 = nn.Linear(_hidden, _hidden)
+        self.W3 = nn.Linear(_hidden, _out)
 
         if ttypes.gpu_compatible:
             self.cuda()
@@ -29,9 +30,9 @@ class QNetwork(nn.Module):
 
     def forward(self, _in):
         _in = ttypes.from_numpy(_in)
-        out = self.W1(_in)
-        out = F.relu(out)
-        out = self.W2(out)
+        out = F.relu(self.W1(_in))
+        out = F.relu(self.W2(out))
+        out = self.W3(out)
         out = F.softmax(out, dim=-1)
         return out
 
