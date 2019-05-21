@@ -30,10 +30,9 @@ class QNetwork(nn.Module):
 
     def forward(self, _in):
         _in = ttypes.from_numpy(_in)
-        out = F.relu(self.W1(_in))
-        out = F.relu(self.W2(out))
-        out = self.W3(out)
-        out = F.softmax(out, dim=-1)
+        out = self.W1(_in)
+        out = F.relu(out)
+        out = self.W2(out)
         return out
 
     def optimize(self, predicted, target, loss_func: nn.Module):
@@ -42,6 +41,7 @@ class QNetwork(nn.Module):
         loss = loss_func(predicted, target)
         loss.backward()
         self.optimizer.step()
+        return loss
 
 class HyperParameters(abc.Mapping):
     def __init__(self, **kwargs):
@@ -115,6 +115,7 @@ class Agent:
             return
 
         batch = self.memory.sample(batch_size)
+        loss = 0
 
         while batch:
             state, action, reward, next_state, terminal = batch.pop(0)
@@ -130,10 +131,12 @@ class Agent:
                 target_rewards[taken_action] = reward + self.discount_rate \
                         * self.model(next_state).detach()[taken_action]
 
-            self.model.optimize(predictions, target_rewards, F.mse_loss)
+            loss += self.model.optimize(predictions, target_rewards, F.mse_loss)
 
         if self.random_threshold > self.minimum_threshold:
             self.random_threshold *= self.threshold_decay
+
+        return loss / batch_size
 
 
 # This is where the agent plays in an environement to learn
@@ -162,8 +165,8 @@ class GymRunner:
                 ending_frame = episode_frame
                 break
 
-        agent.replay(256)
-        return ending_frame
+        loss = agent.replay(256)
+        return ending_frame, loss
 
 def main(environment: str, epochs: int, hyper_parameters: HyperParameters):
     environment = gym.make(environment)
@@ -182,8 +185,8 @@ def main(environment: str, epochs: int, hyper_parameters: HyperParameters):
     sandbox = GymRunner(environment, agent)
 
     for epoch in range(epochs):
-        t = sandbox.execute(hyper_parameters.episode_length)
-        print(f'epoch: {epoch}/{epochs}, SCORE: {t}')
+        t, l = sandbox.execute(hyper_parameters.episode_length)
+        print(f'epoch: {epoch}/{epochs}, score: [{t}], loss: [{l}]')
 
 def Optimizer(name: str):
     return getattr(torch.optim, name)
